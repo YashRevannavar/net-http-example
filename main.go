@@ -9,36 +9,41 @@ import (
 	"sync"
 )
 
-var cacheMutex sync.RWMutex
+type Server struct {
+	userCache  map[int]User
+	mutexCache sync.RWMutex
+	nextUserId int
+}
 
 type User struct {
 	Id   int    `json:"id"`
 	Name string `json:"name"`
 }
 
-var userCache = make(map[int]User)
-var nextUserId = 1
-
 func main() {
+	server := &Server{
+		userCache:  make(map[int]User),
+		nextUserId: 1,
+	}
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /", handleRoot)
-	mux.HandleFunc("POST /users", createUser)
-	mux.HandleFunc("GET /users/{id}", getUserById)
-	mux.HandleFunc("DELETE /users/{id}", deleteUserById)
+	mux.HandleFunc("GET /", server.handleRoot)
+	mux.HandleFunc("POST /users", server.createUser)
+	mux.HandleFunc("GET /users/{id}", server.getUserById)
+	mux.HandleFunc("DELETE /users/{id}", server.deleteUserById)
 
 	fmt.Println("Go net http Server started")
 	log.Fatal(http.ListenAndServe(":8080", mux))
 }
 
-func handleRoot(
+func (s *Server) handleRoot(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
 	fmt.Fprintf(w, "Hello world from Go net http <3")
 }
 
-func createUser(
+func (s *Server) createUser(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
@@ -60,18 +65,18 @@ func createUser(
 		)
 		return
 	}
-	cacheMutex.Lock()
-	defer cacheMutex.Unlock()
+	s.mutexCache.Lock()
+	defer s.mutexCache.Unlock()
 
-	user.Id = nextUserId
-	userCache[user.Id] = user
-	nextUserId++
+	user.Id = s.nextUserId
+	s.userCache[user.Id] = user
+	s.nextUserId++
 
 	w.WriteHeader(http.StatusNoContent)
 
 }
 
-func getUserById(
+func (s *Server) getUserById(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
@@ -85,9 +90,9 @@ func getUserById(
 		)
 		return
 	}
-	cacheMutex.RLock()
-	defer cacheMutex.RUnlock()
-	resultUser, ok := userCache[id]
+	s.mutexCache.RLock()
+	defer s.mutexCache.RUnlock()
+	resultUser, ok := s.userCache[id]
 	if !ok {
 		http.Error(
 			w,
@@ -111,7 +116,7 @@ func getUserById(
 
 }
 
-func deleteUserById(
+func (s *Server) deleteUserById(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
@@ -125,9 +130,9 @@ func deleteUserById(
 		)
 		return
 	}
-	cacheMutex.Lock()
-	defer cacheMutex.RUnlock()
-	if _, ok := userCache[id]; !ok {
+	s.mutexCache.Lock()
+	defer s.mutexCache.Unlock()
+	if _, ok := s.userCache[id]; !ok {
 		http.Error(
 			w,
 			"User not found",
@@ -135,6 +140,6 @@ func deleteUserById(
 		)
 		return
 	}
-	delete(userCache, id)
+	delete(s.userCache, id)
 	w.WriteHeader(http.StatusNoContent)
 }
