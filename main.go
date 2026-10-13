@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"sync"
@@ -10,16 +11,24 @@ import (
 
 var cacheMutex sync.RWMutex
 
+type User struct {
+	Id   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+var userCache = make(map[int]User)
+var nextUserId = 1
+
 func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /", handleRoot)
-	mux.HandleFunc("POST /user", createUser)
-	mux.HandleFunc("GET /user/{id}", getUserById)
-	mux.HandleFunc("DELETE /user/{id}", deleteUserById)
+	mux.HandleFunc("POST /users", createUser)
+	mux.HandleFunc("GET /users/{id}", getUserById)
+	mux.HandleFunc("DELETE /users/{id}", deleteUserById)
 
 	fmt.Println("Go net http Server started")
-	http.ListenAndServe(":8080", mux)
+	log.Fatal(http.ListenAndServe(":8080", mux))
 }
 
 func handleRoot(
@@ -28,12 +37,6 @@ func handleRoot(
 ) {
 	fmt.Fprintf(w, "Hello world from Go net http <3")
 }
-
-type User struct {
-	Name string `json:"name"`
-}
-
-var userCache = make(map[int]User)
 
 func createUser(
 	w http.ResponseWriter,
@@ -58,8 +61,11 @@ func createUser(
 		return
 	}
 	cacheMutex.Lock()
-	userCache[len(userCache)+1] = user
-	cacheMutex.Unlock()
+	defer cacheMutex.Unlock()
+
+	user.Id = nextUserId
+	userCache[user.Id] = user
+	nextUserId++
 
 	w.WriteHeader(http.StatusNoContent)
 
@@ -80,8 +86,8 @@ func getUserById(
 		return
 	}
 	cacheMutex.RLock()
+	defer cacheMutex.RUnlock()
 	resultUser, ok := userCache[id]
-	cacheMutex.RUnlock()
 	if !ok {
 		http.Error(
 			w,
@@ -119,7 +125,8 @@ func deleteUserById(
 		)
 		return
 	}
-	cacheMutex.RLock()
+	cacheMutex.Lock()
+	defer cacheMutex.RUnlock()
 	if _, ok := userCache[id]; !ok {
 		http.Error(
 			w,
@@ -129,6 +136,5 @@ func deleteUserById(
 		return
 	}
 	delete(userCache, id)
-	cacheMutex.RUnlock()
 	w.WriteHeader(http.StatusNoContent)
 }
