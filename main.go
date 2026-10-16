@@ -143,3 +143,7 @@ func (s *Server) deleteUserById(
 	delete(s.userCache, id)
 	w.WriteHeader(http.StatusNoContent)
 }
+
+func addition(x, y int) int {
+	return x + y
+}
