@@ -29,6 +29,7 @@ func main() {
 
 	mux.HandleFunc("GET /", server.handleRoot)
 	mux.HandleFunc("POST /users", server.createUser)
+	mux.HandleFunc("GET /users", server.getUsers)
 	mux.HandleFunc("GET /users/{id}", server.getUserById)
 	mux.HandleFunc("DELETE /users/{id}", server.deleteUserById)
 
@@ -74,6 +75,34 @@ func (s *Server) createUser(
 
 	w.WriteHeader(http.StatusNoContent)
 
+}
+
+func (s *Server) getUsers(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	w.Header().Set("Content-Type", "application/json")
+	s.mutexCache.RLock()
+	defer s.mutexCache.RUnlock()
+	if len(s.userCache) == 0 {
+		http.Error(
+			w,
+			"No Users available",
+			http.StatusNotFound,
+		)
+		return
+	}
+	jsonUser, err := json.Marshal(s.userCache)
+	if err != nil {
+		http.Error(
+			w,
+			err.Error(),
+			http.StatusInternalServerError,
+		)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write(jsonUser)
 }
 
 func (s *Server) getUserById(
@@ -142,8 +171,4 @@ func (s *Server) deleteUserById(
 	}
 	delete(s.userCache, id)
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func addition(x, y int) int {
-	return x + y
 }

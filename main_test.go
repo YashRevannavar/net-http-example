@@ -50,5 +50,32 @@ func TestServerCreateUser(t *testing.T) {
 		},
 		server.userCache[1],
 	)
+	// TODO: Test multiple cases
+}
 
+func TestServer_getUserById(t *testing.T) {
+
+	server := &Server{
+		userCache: map[int]User{
+			1: {
+				Id:   1,
+				Name: "Yash",
+			},
+		},
+		nextUserId: 2,
+	}
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/users/1",
+		nil,
+	)
+	request.SetPathValue("id", "1")
+	recorder := httptest.NewRecorder()
+	server.getUserById(recorder, request)
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.JSONEq(
+		t,
+		`{"id":1,"name":"Yash"}`,
+		recorder.Body.String(),
+	)
 }
